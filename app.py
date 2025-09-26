@@ -13,7 +13,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 from fastapi import FastAPI, HTTPException
 from supabase import create_client, Client
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import List, Optional
 
 from datetime import date 
@@ -23,6 +23,7 @@ app = FastAPI()
 
 # --- Pydantic Models for Data Validation ---
 class BookingCreate(BaseModel):
+    customer_id: int
     slot_id: str
     customer_name: str
     phone_number: str
@@ -31,6 +32,7 @@ class BookingCreate(BaseModel):
 
 
 class InquiryCreate(BaseModel):
+    customer_id: int
     customer_name: str
     phone_number: str
     email: Optional[str] = None
@@ -46,10 +48,17 @@ class CallLogCreate(BaseModel):
     call_intent: str
     call_summary: str
     sentiment: str
+    rating: Optional[int] = None
     was_out_of_scope: bool
     was_escalated: bool
     notes: Optional[str] = None
     suspects_ai:bool
+
+
+class Customer(BaseModel):
+    name: Optional[str]
+    phone_number: str
+    email: Optional[str] = None
 
 @app.get("/check-availability/", response_model=List[dict])
 def check_availability(
@@ -99,18 +108,11 @@ def create_booking(booking_data: BookingCreate):
         
         if booking_data.guest_count <= 0:
             return {"error": "Guest count must be a positive integer"}
-        # 2. Find or create the customer
-        customer_response = supabase.table("Customers").upsert({
-            "phone_number": booking_data.phone_number,
-            "customer_name": booking_data.customer_name,
-            "email": booking_data.email
-        },on_conflict="phone_number" ).execute()
-        customer_id = customer_response.data[0]["customer_id"]
-
+        
         # 3. Create the booking
         booking_response = supabase.table("bookings").insert({
             "slot_id": booking_data.slot_id,
-            "customer_id": customer_id,
+            "customer_id": booking_data.customer_id,
             "guest_count": booking_data.guest_count
         }).execute()
         booking_id = booking_response.data[0]["booking_id"]
@@ -127,17 +129,9 @@ def create_booking(booking_data: BookingCreate):
 def create_inquiry(inquiry_data: InquiryCreate):
     """Creates a customer (if new) and an event inquiry for sales follow-up."""
     try:
-        # 1. Find or create the customer
-        customer_response = supabase.table('Customers').upsert({
-            'phone_number': inquiry_data.phone_number,
-            'customer_name': inquiry_data.customer_name,
-            'email': inquiry_data.email
-        },on_conflict="phone_number" ).execute()
-        customer_id = customer_response.data[0]['customer_id']
-
         # 2. Create the event inquiry
         inquiry_response = supabase.table('event_inquiries').insert({
-            'customer_id': customer_id,
+            'customer_id': inquiry_data.customer_id,
             'event_type': inquiry_data.event_type,
             'proposed_date': inquiry_data.proposed_date,
             'guest_count': inquiry_data.guest_count,
@@ -210,3 +204,74 @@ def get_booking_details(phone_number: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+
+def check_customer_exists(
+    phone_number: str = None, 
+    email: str = None, 
+    name: str = None
+):
+    """
+    Checks if a customer exists in the 'Customers' table.
+    """
+    try:
+        # Build the query
+        query = supabase.table("Customers").select("*")
+        response = query.filter("phone_number", "eq", phone_number).execute()
+        print("DEBUG: Customer existence check response:", response.data)
+        if response.data:
+            return response.data
+        return False
+    except Exception as e:
+        print(f"Error checking for customer existence: {e}")
+        return False
+
+
+@app.post("/customers/")
+async def find_or_create_customer(customer: Customer):
+    """
+    Attempts to find an existing customer. If not found, creates a new one.
+    This implements the desired 'POST/find-or-create' workflow.
+    """
+    # 1. ATTEMPT TO FIND THE CUSTOMER
+    existing_customer_data = check_customer_exists(phone_number=customer.phone_number)
+    
+    if existing_customer_data:
+        # Customer found (The "Find" path)
+        print(f"Existing customer found: {existing_customer_data}")
+        return {
+            "message": "Customer already exists (Found)", 
+            "status": "found",
+            "data": existing_customer_data
+        }
+
+    # 2. CREATE THE NEW CUSTOMER
+    # Customer not found, proceed with insertion (The "Create" path)
+    try:
+        # Convert Pydantic model to dict, excluding None values for clean payload
+        new_customer_data = customer.model_dump(exclude_none=True)
+        
+        response = supabase.table("Customers").insert(
+            [new_customer_data]
+        ).execute()
+        
+        if response.data:
+            # Successfully created the new customer
+            print(f"New customer created: {response.data[0]['id']}")
+            return {
+                "message": "New customer created successfully", 
+                "status": "created",
+                "data": response.data[0]
+            }
+        else:
+            # Supabase returned an unexpected empty response
+            raise HTTPException(
+                status_code=500, 
+                detail="Failed to create customer: Empty response from database."
+            )
+            
+    except Exception as e:
+        # Catch any database or insertion errors
+        print(f"Database insertion error: {e}")
+        raise HTTPException(status_code=500, detail=f"Database error during creation: {str(e)}")
