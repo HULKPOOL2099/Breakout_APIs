@@ -53,7 +53,7 @@ class CallLogCreate(BaseModel):
     was_escalated: bool
     notes: Optional[str] = None
     suspects_ai:bool
-    conversation_id:string
+    conversation_id:str
 
 
 class Customer(BaseModel):
