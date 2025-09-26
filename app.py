@@ -29,6 +29,7 @@ class BookingCreate(BaseModel):
     email: Optional[str] = None
     guest_count: int
 
+
 class InquiryCreate(BaseModel):
     customer_name: str
     phone_number: str
@@ -96,8 +97,10 @@ def create_booking(booking_data: BookingCreate):
 
         if not slot or slot.get("status") != "Available":
             return {"error": "Slot not found or already booked", "details": slot}
-
-        # 2. Find or create the customer 
+        
+        if booking_data.guest_count <= 0:
+            return {"error": "Guest count must be a positive integer"}
+        # 2. Find or create the customer
         customer_response = supabase.table("Customers").upsert({
             "phone_number": booking_data.phone_number,
             "customer_name": booking_data.customer_name,
@@ -165,6 +168,46 @@ def log_call(call_data: CallLogCreate):
         created_at = response.data[0].get("created_at")  # optional return
 
         return {"status": "success", "log_id": log_id, "created_at": created_at}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+
+@app.get("/booking-details/", response_model=List[dict])
+def get_booking_details(phone_number: str):
+    """
+    Retrieves future booking details for a customer based on their phone number.
+    """
+    try:
+        # 1. Find the customer by their phone number
+        customer_response = supabase.table("Customers").select("customer_id").eq("phone_number", phone_number).single().execute()
+        
+        print("DEBUG : ",customer_response.data)
+        if not customer_response.data:
+            return [] # Return an empty list if no customer is found
+        
+        customer_id = customer_response.data["customer_id"]
+
+        print("DEBUG : Customer ID",customer_id)
+        # 2. Find future bookings for that customer and get the related slot info
+        today_str = date.today().isoformat()
+        
+
+        # --- TEMPORARY DEBUGGING CODE ---
+        print(f"DEBUG: Searching for bookings with customer_id: {customer_id}")
+
+        # Let's simplify the query to find ANY booking for this customer
+        debug_response = supabase.table("bookings").select("*").eq("customer_id", customer_id).execute()
+
+        print("DEBUG: Raw bookings found for this customer:", debug_response.data)
+        # --- END OF DEBUGGING CODE ---
+        bookings_response = supabase.table("bookings").select(
+            "*, Slots!inner(*)"  # This fetches all booking columns and all related slot columns
+        ).eq("customer_id", customer_id).gte("Slots.slot_date", today_str).execute()
+
+        print("DEBUG : Bookings Response",bookings_response.data)
+        return bookings_response.data
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
