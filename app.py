@@ -80,12 +80,12 @@ def create_booking(booking_data: BookingCreate):
     """Creates a customer (if new) and a booking, then updates the slot status."""
     try:
         # 1. Check if the slot is still available
-        slot_response = supabase.table('slots').select('status').eq('slot_id', booking_data.slot_id).single().execute()
+        slot_response = supabase.table('Slots').select('status').eq('slot_id', booking_data.slot_id).single().execute()
         if slot_response.data['status'] != 'available':
             raise HTTPException(status_code=409, detail="This slot is no longer available.")
 
         # 2. Find or create the customer (Upsert)
-        customer_response = supabase.table('customers').upsert({
+        customer_response = supabase.table('Customers').upsert({
             'phone_number': booking_data.phone_number,
             'customer_name': booking_data.customer_name,
             'email': booking_data.email
@@ -113,7 +113,7 @@ def create_inquiry(inquiry_data: InquiryCreate):
     """Creates a customer (if new) and an event inquiry for sales follow-up."""
     try:
         # 1. Find or create the customer
-        customer_response = supabase.table('customers').upsert({
+        customer_response = supabase.table('Customers').upsert({
             'phone_number': inquiry_data.phone_number,
             'customer_name': inquiry_data.customer_name,
             'email': inquiry_data.email
