@@ -46,7 +46,6 @@ class CallLogCreate(BaseModel):
     call_intent: str
     call_summary: str
     sentiment: str
-    rating: Optional[int] = None
     was_out_of_scope: bool
     was_escalated: bool
     notes: Optional[str] = None
