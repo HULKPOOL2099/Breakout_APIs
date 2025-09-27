@@ -169,11 +169,12 @@ def get_booking_details(phone_number: str):
     """
     try:
         # 1. Find the customer by their phone number
-        customer_response = supabase.table("Customers").select("customer_id").eq("phone_number", phone_number).single().execute()
-        
-        print("DEBUG : ",customer_response.data)
-        if not customer_response.data:
+        customer_response = supabase.table("Customers").select("customer_id").eq("phone_number", phone_number).maybe_single().execute()
+        print("DEBUG : Customer Response",customer_response)
+        if customer_response is None or customer_response.data is None:
+            print("Empty")
             return [] # Return an empty list if no customer is found
+        print("DEBUG : ",customer_response.data)
         
         customer_id = customer_response.data["customer_id"]
 
@@ -200,8 +201,6 @@ def get_booking_details(phone_number: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-
-
 def check_customer_exists(
     phone_number: str = None, 
     email: str = None, 
