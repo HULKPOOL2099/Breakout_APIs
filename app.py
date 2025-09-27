@@ -25,7 +25,6 @@ app = FastAPI()
 class BookingCreate(BaseModel):
     customer_id: int
     slot_id: str
-    customer_name: str
     phone_number: str
     email: Optional[str] = None
     guest_count: int
@@ -33,9 +32,6 @@ class BookingCreate(BaseModel):
 
 class InquiryCreate(BaseModel):
     customer_id: int
-    customer_name: str
-    phone_number: str
-    email: Optional[str] = None
     event_type: str
     proposed_date: Optional[str] = None
     guest_count: Optional[int] = None
@@ -43,7 +39,7 @@ class InquiryCreate(BaseModel):
 
 
 class CallLogCreate(BaseModel):
-    customer_id: Optional[int]
+    customer_id: int
     call_duration: int
     call_intent: str
     call_summary: str
