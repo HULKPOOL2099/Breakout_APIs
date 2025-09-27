@@ -253,7 +253,7 @@ async def find_or_create_customer(customer: Customer):
         
         if response.data:
             # Successfully created the new customer
-            print(f"New customer created: {response.data[0]['id']}")
+            print(f"New customer created: {response.data[0]['customer_id']}")
             return {
                 "message": "New customer created successfully", 
                 "status": "created",
