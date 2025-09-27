@@ -25,8 +25,6 @@ app = FastAPI()
 class BookingCreate(BaseModel):
     customer_id: int
     slot_id: str
-    phone_number: str
-    email: Optional[str] = None
     guest_count: int
 
 
