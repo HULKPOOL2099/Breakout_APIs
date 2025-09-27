@@ -140,7 +140,7 @@ def create_inquiry(inquiry_data: InquiryCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/call_logs", response_model=dict)
+@app.post("/call_logs/", response_model=dict)
 def log_call(call_data: CallLogCreate):
     """Logs call details into the call_logs table."""
     try:
